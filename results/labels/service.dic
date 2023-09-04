@@ -1,0 +1,1 @@
+{'-': 0, 'http': 1, 'ftp': 2, 'ftp-data': 3, 'smtp': 4, 'pop3': 5, 'dns': 6, 'snmp': 7, 'ssl': 8, 'dhcp': 9, 'irc': 10, 'radius': 11, 'ssh': 12}
