@@ -20,7 +20,7 @@ def labelEncode(df, s):
     uni = df.unique()
     for i in range(len(uni)):
         dic[uni[i]] = i
-    print("{}标签转换为：".format(s), dic, '\n')
+    # print("{}标签转换为：".format(s), dic, '\n')
     with open('results/labels/{}.dic'.format(s), 'w+') as f:
         f.write(str(dic))
         f.close()
@@ -41,21 +41,28 @@ def saveModels(clf):
 
 # 计算准确率
 def calcAR(clf):
-    global x_train, x_test, y_train, y_test
+    global x_train, x_test, y_train, y_test, label, res
 
     y_pre = clf.predict(x_test)
-    print('{}在预测集模型的准确率为：'.format(label), metrics.accuracy_score(y_test, y_pre))
-    print('{}在训练集模型的准确率为：'.format(label), metrics.accuracy_score(y_train, clf.predict(x_train)))
+    preAC = metrics.accuracy_score(y_test, y_pre)
+    # print('{}在预测集模型的准确率为：'.format(label), preAC)
+    trainAC = metrics.accuracy_score(y_train, clf.predict(x_train))
+    # print('{}在训练集模型的准确率为：'.format(label), trainAC)
     tem = metrics.accuracy_score(y, clf.predict(x))
-    print('{}的综合准确率为：'.format(label), tem)
+    # print('{}的综合准确率为：'.format(label), tem)
 
-    t = pd.DataFrame(y_test - y_pre)
-    print('{}标签准确率：'.format(label), len(t[t[0] == 0]) / len(t[0]))
+    # t = pd.DataFrame(y_test - y_pre)
+    # print('{}标签准确率：'.format(label), len(t[t[0] == 0]) / len(t[0]))
     t = pd.DataFrame(y_pre)
     t[t[0] != 0] = 1
     yt = pd.DataFrame(y_test)
     yt[yt[0] != 0] = 1
-    print('{}拦截准确率：'.format(label), len(yt[((yt == t)[0] == True)]) / len(yt))
+    labelAC = len(yt[((yt == t)[0] == True)]) / len(yt)
+    # print('{}拦截准确率：'.format(label), labelAC)
+    new = pd.DataFrame({'算法名称': label, '预测集模型的准确率': preAC, '训练集模型的准确率': trainAC, '综合准确率': tem, '拦截准确率': labelAC},
+                       index=[0])
+    res = res.append(new, ignore_index=True)
+    # print(res)
 
     return tem
 
@@ -77,39 +84,47 @@ if __name__ == '__main__':
     x = tranfer.fit_transform(X)
     x_train = tranfer.transform(x_train)
     x_test = tranfer.transform(x_test)
+    # 结果表
+    res = pd.DataFrame(data=None, columns=['算法名称', '预测集模型的准确率', '训练集模型的准确率', '综合准确率', '拦截准确率'])
     #################################数据预处理#################################
 
 
     #################################模型训练评估#################################
-    # # 模型实例化
-    # knn = KNeighborsClassifier()
-    # LR = LogisticRegression()
-    # Ada = ada()
-    # GBDT = GradientBoostingClassifier()
-    # svc = SVC(probability=True)
-    # rf = RF()
-    #
-    # weight = []
-    #
-    # # 集合模型训练并评估
-    # for clf, label in zip([knn, LR, Ada, GBDT, svc, rf],
-    #                       ['knn', 'LR', 'Ada', 'GBDT', 'svc', 'rf']):
-    #     clf.fit(x_train, y_train)
-    #     weight.append(calcAR(clf))
-    #     saveModels(clf)
-    #
-    # label = 'vote'
-    # w = weight/sum(weight)
-    # vote = VotingClassifier(estimators=[('knn', knn), ('LR', LR), ('Ada', Ada),
-    #                                     ('GBDT', GBDT), ('svc', svc), ('rf', rf)],
-    #                         voting='soft', weights=weight)
-    # vote.fit(x_train, y_train)
-    # saveModels(vote)
-    # calcAR(vote)
+    # 模型实例化
+    knn = KNeighborsClassifier()
+    LR = LogisticRegression(max_iter=3000)
+    Ada = ada()
+    GBDT = GradientBoostingClassifier()
+    svc = SVC(probability=True)
+    rf = RF()
 
-    # 读取模型并评估
-    for label in zip(['knn', 'LR', 'Ada', 'GBDT', 'svc', 'rf', 'vote']):
-        clf = joblib.load('results/models/{}.pkl'.format(label))
-        clf.fit(x_train, y_train)
-        calcAR(clf)
+    weight = []
+
+    # 集合模型训练并评估
+    for clf, label in zip([knn, LR, Ada, GBDT, svc, rf],
+                          ['knn', 'LR', 'Ada', 'GBDT', 'svc', 'rf']):
+        try:
+            clf = joblib.load('results/models/{}.pkl'.format(label))
+            weight.append(calcAR(clf))
+        except:
+            clf.fit(x_train, y_train)
+            weight.append(calcAR(clf))
+            saveModels(clf)
+
+    # 软投票训练
+    label = 'vote'
+    try:
+        vote = joblib.load('results/models/{}.pkl'.format(label))
+        calcAR(vote)
+    except:
+        w = weight / sum(weight)
+        vote = VotingClassifier(estimators=[('knn', knn), ('LR', LR), ('Ada', Ada),
+                                            ('GBDT', GBDT), ('svc', svc), ('rf', rf)],
+                                voting='soft', weights=weight)
+        vote.fit(x_train, y_train)
+        calcAR(vote)
+        saveModels(vote)
+    print(res)
+    res.to_excel('results/results.xlsx')
+
     #################################模型训练评估#################################
